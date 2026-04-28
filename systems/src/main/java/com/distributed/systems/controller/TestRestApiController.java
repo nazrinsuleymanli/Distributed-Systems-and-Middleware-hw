@@ -11,14 +11,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-@RequestMapping("/api")
+@RequestMapping
 @RestController
 @RequiredArgsConstructor
 public class TestRestApiController {
 
     private final AirportService airportService;
 
-    @GetMapping(value = "/query", produces = {MediaType.APPLICATION_JSON_VALUE, MediaType.APPLICATION_XML_VALUE})
+    @GetMapping(value = {"","/"}, produces = {MediaType.APPLICATION_JSON_VALUE, MediaType.APPLICATION_XML_VALUE})
     public ResponseEntity<?> handleQuery(
             @RequestParam(required = false) String queryAirportTemp,
             @RequestParam(required = false) String queryStockPrice,
