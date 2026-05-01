@@ -19,14 +19,12 @@ repositories {
 
 dependencies {
 	compileOnly("org.projectlombok:lombok")
-	annotationProcessor ("org.projectlombok:lombok")
-	implementation("org.springframework.boot:spring-boot-starter-webmvc")
-	implementation("org.springframework.boot:spring-boot-starter-webservices")
-	testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
-	testImplementation("org.springframework.boot:spring-boot-starter-webservices-test")
-	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+	annotationProcessor("org.projectlombok:lombok")
+	implementation("org.springframework.boot:spring-boot-starter-web")
+	implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-xml")
 	implementation("net.objecthunter:exp4j:0.4.8")
-	implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.15.2")
+	testImplementation("org.springframework.boot:spring-boot-starter-test")
+	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.withType<Test> {

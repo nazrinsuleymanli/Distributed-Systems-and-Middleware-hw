@@ -1,12 +1,17 @@
 package com.distributed.systems.wrapper;
 
-import jakarta.xml.bind.annotation.XmlRootElement;
-import jakarta.xml.bind.annotation.XmlValue;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlRootElement;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlText;
 
-@XmlRootElement(name = "result")
+@JacksonXmlRootElement(localName = "result")
 public class ResultWrapper {
     private Double value;
+
+    public ResultWrapper() {} // ← required by JAXB
     public ResultWrapper(Double value) { this.value = value; }
-    @XmlValue // This puts the number inside the <result> tags
+
+    @JacksonXmlText
     public Double getValue() { return value; }
+
+    public void setValue(Double value) { this.value = value; } // ← also good practice
 }
