@@ -1,5 +1,7 @@
 package com.distributed.systems.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import net.objecthunter.exp4j.Expression;
 import net.objecthunter.exp4j.ExpressionBuilder;
 import org.springframework.stereotype.Service;
@@ -16,35 +18,36 @@ import java.util.List;
 public class AirportService {
 
     private final RestTemplate restTemplate = new RestTemplate();
+    private final ObjectMapper mapper = new ObjectMapper();
+    private final HttpEntity<Void> defaultEntity = new HttpEntity<>(
+            new HttpHeaders() {{ set("User-Agent", "Mozilla/5.0"); }}
+    );
 
     // ── Weather via wttr.in (no API key needed) ──────────────────────────
-    public double getAirportTemperature(String iataCode) {
-        String url = "https://wttr.in/" + iataCode.toUpperCase() + "?format=j1";
+    public double getAirportTemperature(String iataCode) throws Exception {
+        // Step 1: IATA → lat/lon via airport-data.com (mentioned in homework)
+        String airportUrl = "https://airport-data.com/api/ap_info.json?iata=" + iataCode.toUpperCase();
+        ResponseEntity<String> airportResp = restTemplate.exchange(
+                airportUrl, HttpMethod.GET, defaultEntity, String.class);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("User-Agent", "curl/7.68.0");
-        headers.set("Accept", "application/json");
-        HttpEntity<Void> entity = new HttpEntity<>(headers);
+        JsonNode airportJson = mapper.readTree(airportResp.getBody());
+        double lat = airportJson.path("latitude").asDouble();
+        double lon = airportJson.path("longitude").asDouble();
 
-        ResponseEntity<String> response = restTemplate.exchange(
-                url, HttpMethod.GET, entity, String.class);
-
-        String json = response.getBody();
-        if (json == null) throw new RuntimeException("No weather data for: " + iataCode);
-
-        // Parse manually using Jackson ObjectMapper
-        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-        try {
-            com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(json);
-            String tempC = root
-                    .path("current_condition")
-                    .get(0)
-                    .path("temp_C")
-                    .asText();
-            return Double.parseDouble(tempC);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to parse weather response: " + e.getMessage());
+        if (lat == 0.0 && lon == 0.0) {
+            throw new RuntimeException("Airport not found: " + iataCode);
         }
+
+        // Step 2: lat/lon → temperature via open-meteo.com (free, no key, real-time)
+        String weatherUrl = String.format(
+                "https://api.open-meteo.com/v1/forecast?latitude=%f&longitude=%f&current=temperature_2m",
+                lat, lon
+        );
+        ResponseEntity<String> weatherResp = restTemplate.exchange(
+                weatherUrl, HttpMethod.GET, defaultEntity, String.class);
+
+        JsonNode weatherJson = mapper.readTree(weatherResp.getBody());
+        return weatherJson.path("current").path("temperature_2m").asDouble();
     }
 
     // ── Stock price via Yahoo Finance (no API key needed) ─────────────────
