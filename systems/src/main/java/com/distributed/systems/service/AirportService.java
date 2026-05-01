@@ -1,62 +1,109 @@
 package com.distributed.systems.service;
 
-import lombok.RequiredArgsConstructor;
 import net.objecthunter.exp4j.Expression;
 import net.objecthunter.exp4j.ExpressionBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import net.objecthunter.exp4j.ExpressionBuilder;
+import org.springframework.http.*;
+import org.springframework.web.client.RestTemplate;
+
 import java.util.List;
-import java.util.Map;
 
 @Service
-@RequiredArgsConstructor
 public class AirportService {
-    private final RestTemplate restTemplate;
 
-    public double evaluateExpression(String expr) {
-        Expression expression = new ExpressionBuilder(expr).build();
-        return expression.evaluate();
+    private final RestTemplate restTemplate = new RestTemplate();
+
+    // ── Weather via wttr.in (no API key needed) ──────────────────────────
+    public double getAirportTemperature(String iataCode) {
+        String url = "https://wttr.in/" + iataCode.toUpperCase() + "?format=j1";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("User-Agent", "curl/7.68.0");
+        headers.set("Accept", "application/json");
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        ResponseEntity<String> response = restTemplate.exchange(
+                url, HttpMethod.GET, entity, String.class);
+
+        String json = response.getBody();
+        if (json == null) throw new RuntimeException("No weather data for: " + iataCode);
+
+        // Parse manually using Jackson ObjectMapper
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        try {
+            com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(json);
+            String tempC = root
+                    .path("current_condition")
+                    .get(0)
+                    .path("temp_C")
+                    .asText();
+            return Double.parseDouble(tempC);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse weather response: " + e.getMessage());
+        }
     }
 
+    // ── Stock price via Yahoo Finance (no API key needed) ─────────────────
     public double getStockPrice(String symbol) {
+        String url = "https://query1.finance.yahoo.com/v8/finance/chart/" + symbol.toUpperCase()
+                + "?interval=1d&range=1d";
 
-        String url = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=" + symbol;
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("User-Agent", "Mozilla/5.0");
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
 
-        Map response = restTemplate.getForObject(url, Map.class);
+        ResponseEntity<YahooResponse> response = restTemplate.exchange(
+                url, HttpMethod.GET, entity, YahooResponse.class);
 
-        Map quoteResponse = (Map) response.get("quoteResponse");
-        List result = (List) quoteResponse.get("result");
-
-        if (result.isEmpty()) {
-            throw new RuntimeException("Invalid stock symbol");
+        YahooResponse body = response.getBody();
+        try {
+            return body.chart.result.get(0).meta.regularMarketPrice;
+        } catch (Exception e) {
+            throw new RuntimeException("Stock not found: " + symbol);
         }
-
-        Map stockData = (Map) result.get(0);
-
-        return Double.parseDouble(stockData.get("regularMarketPrice").toString());
     }
-    public double getAirportTemperature(String iata) {
 
-        // 1. Get airport info
-        String airportUrl = "https://airport-data.com/api/ap_info.json?iata=" + iata;
-        Map airportResponse = restTemplate.getForObject(airportUrl, Map.class);
+    // ── Expression evaluation via exp4j ───────────────────────────────────
+    public double evaluateExpression(String expression) {
+        // Strip spaces — valid arithmetic needs none, and spaces may be
+        // URL-decoded '+' signs that were lost in transit
+        String sanitized = expression.replaceAll("\\s+", "");
+        return new ExpressionBuilder(sanitized).build().evaluate();
+    }
 
-        if (airportResponse == null || airportResponse.get("latitude") == null) {
-            throw new RuntimeException("Invalid airport code");
+    // ── DTOs ──────────────────────────────────────────────────────────────
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    static class WttrResponse {
+        public List<CurrentCondition> current_condition;
+
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        static class CurrentCondition {
+            public String temp_C;
         }
+    }
 
-        double lat = Double.parseDouble(airportResponse.get("latitude").toString());
-        double lon = Double.parseDouble(airportResponse.get("longitude").toString());
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    static class YahooResponse {
+        public Chart chart;
 
-        // 2. Get weather
-        String weatherUrl = "https://api.open-meteo.com/v1/forecast?latitude="
-                + lat + "&longitude=" + lon + "&current_weather=true";
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        static class Chart {
+            public List<Result> result;
 
-        Map weatherResponse = restTemplate.getForObject(weatherUrl, Map.class);
+            @JsonIgnoreProperties(ignoreUnknown = true)
+            static class Result {
+                public Meta meta;
 
-        Map currentWeather = (Map) weatherResponse.get("current_weather");
-
-        return Double.parseDouble(currentWeather.get("temperature").toString());
+                @JsonIgnoreProperties(ignoreUnknown = true)
+                static class Meta {
+                    public double regularMarketPrice;
+                }
+            }
+        }
     }
 }

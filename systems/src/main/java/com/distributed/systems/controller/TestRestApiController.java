@@ -12,8 +12,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-@RequestMapping()
 @RestController
+@RequestMapping("/")
 @RequiredArgsConstructor
 public class TestRestApiController {
 
@@ -24,15 +24,15 @@ public class TestRestApiController {
             @RequestParam(required = false) String queryAirportTemp,
             @RequestParam(required = false) String queryStockPrice,
             @RequestParam(required = false) String queryEval,
-            @RequestHeader(value = "Accept", defaultValue = "application/json") String acceptHeader
+            @RequestHeader(value = "Accept", defaultValue = MediaType.APPLICATION_JSON_VALUE) String acceptHeader
     ) {
         int count = 0;
         if (queryAirportTemp != null) count++;
-        if (queryStockPrice != null) count++;
-        if (queryEval != null) count++;
+        if (queryStockPrice  != null) count++;
+        if (queryEval        != null) count++;
 
         if (count != 1) {
-            return ResponseEntity.badRequest().body("Only one parameter allowed");
+            return ResponseEntity.badRequest().body("Exactly one parameter required.");
         }
 
         try {
@@ -46,7 +46,6 @@ public class TestRestApiController {
                 result = airportService.evaluateExpression(queryEval);
             }
 
-            // Return raw number for JSON, wrapped for XML
             boolean wantsXml = acceptHeader.contains("xml");
             if (wantsXml) {
                 return ResponseEntity.ok()
@@ -55,16 +54,16 @@ public class TestRestApiController {
             } else {
                 return ResponseEntity.ok()
                         .contentType(MediaType.APPLICATION_JSON)
-                        .body(result); // ← raw double, no wrapper
+                        .body(result);
             }
 
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
         }
-
     }
 
     @GetMapping("/test")
-    public String test() { return "ok"; }
-
+    public String test() {
+        return "ok";
+    }
 }
