@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -22,7 +23,8 @@ public class TestRestApiController {
     public ResponseEntity<?> handleQuery(
             @RequestParam(required = false) String queryAirportTemp,
             @RequestParam(required = false) String queryStockPrice,
-            @RequestParam(required = false) String queryEval
+            @RequestParam(required = false) String queryEval,
+            @RequestHeader(value = "Accept", defaultValue = "application/json") String acceptHeader
     ) {
         int count = 0;
         if (queryAirportTemp != null) count++;
@@ -34,29 +36,32 @@ public class TestRestApiController {
         }
 
         try {
-            // ✈️ Airport temperature
+            double result;
+
             if (queryAirportTemp != null) {
-                double temp = airportService.getAirportTemperature(queryAirportTemp);
-                return ResponseEntity.ok(new ResultWrapper(temp));
+                result = airportService.getAirportTemperature(queryAirportTemp);
+            } else if (queryStockPrice != null) {
+                result = airportService.getStockPrice(queryStockPrice);
+            } else {
+                result = airportService.evaluateExpression(queryEval);
             }
 
-            // 📈 Stock price
-            if (queryStockPrice != null) {
-                double price = airportService.getStockPrice(queryStockPrice);
-                return ResponseEntity.ok(new ResultWrapper(price));
-            }
-
-            // 🧮 Expression
-            if (queryEval != null) {
-                double result = airportService.evaluateExpression(queryEval);
-                return ResponseEntity.ok(new ResultWrapper(result));
+            // Return raw number for JSON, wrapped for XML
+            boolean wantsXml = acceptHeader.contains("xml");
+            if (wantsXml) {
+                return ResponseEntity.ok()
+                        .contentType(MediaType.APPLICATION_XML)
+                        .body(new ResultWrapper(result));
+            } else {
+                return ResponseEntity.ok()
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(result); // ← raw double, no wrapper
             }
 
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
         }
 
-        return ResponseEntity.badRequest().build();
     }
 
     @GetMapping("/test")
